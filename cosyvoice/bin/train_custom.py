@@ -57,9 +57,9 @@ def log_metrics(tag, step, epoch, loss_dict, info_dict, rank):
     # Console log
     loss_str = ' '.join([f'{k} {v:.6f}' for k, v in loss_dict.items()])
     if tag == 'TRAIN':
-        logging.info(f'{tag} Step {step + 1} Epoch {epoch} | {loss_str} | lr {lr:.8f} grad_norm {grad_norm:.6f} | rank {rank}')
+        logging.info(f'{tag} Step {step + 1} Epoch {epoch:.4f} | {loss_str} | lr {lr:.8f} grad_norm {grad_norm:.6f} | rank {rank}')
     else:
-        logging.info(f'{tag} Step {step + 1} Epoch {epoch} | {loss_str} | lr {lr:.8f} | rank {rank}')
+        logging.info(f'{tag} Step {step + 1} Epoch {epoch:.4f} | {loss_str} | lr {lr:.8f} | rank {rank}')
 
     # WandB log
     if _wandb_available and rank == 0 and wandb.run is not None:
@@ -98,7 +98,7 @@ def cleanup_checkpoints(model_dir, keep_n=2):
 @torch.inference_mode()
 def evaluate(model, cv_data_loader, info_dict, step, epoch, writer, rank):
     """Run cross-validation and return average loss."""
-    logging.info(f'--- Eval at Step {step + 1} Epoch {epoch} ---')
+    logging.info(f'--- Eval at Step {step + 1} Epoch {epoch:.4f} ---')
     model.eval()
 
     total_num_utts = 0
@@ -221,15 +221,21 @@ def train(model, optimizer, scheduler, scaler, train_data_loader, cv_data_loader
 
                 if is_accum_boundary:
                     global_step += 1
+                    
+                    # Calculate fractional epoch (like HF Trainer)
+                    try:
+                        fractional_epoch = epoch + (batch_idx + 1) / len(train_data_loader)
+                    except TypeError:  # Handle IterableDataset missing len() safely
+                        fractional_epoch = float(epoch)
 
                     # --- LOG ---
                     if global_step % log_interval == 0:
-                        log_metrics('TRAIN', global_step - 1, epoch, info_dict['loss_dict'], info_dict, rank)
+                        log_metrics('TRAIN', global_step - 1, fractional_epoch, info_dict['loss_dict'], info_dict, rank)
 
                     # --- EVAL + SAVE ---
                     if save_per_step > 0 and global_step % save_per_step == 0:
                         dist.barrier()
-                        eval_loss = evaluate(model, cv_data_loader, info_dict, global_step - 1, epoch, writer, rank)
+                        eval_loss = evaluate(model, cv_data_loader, info_dict, global_step - 1, fractional_epoch, writer, rank)
 
                         # Save checkpoint
                         info_dict['step'] = global_step - 1
@@ -365,16 +371,8 @@ def main():
         start_epoch = state_dict.get('epoch', -1)
         logging.info(f'Loaded checkpoint: step={start_step}, epoch={start_epoch}')
 
-    # --- Wrap model for DDP ---
-    if args.train_engine == 'torch_ddp':
-        assert torch.cuda.is_available()
-        model.cuda()
-        # QLoRA with non-reentrant gradient checkpointing requires find_unused_parameters=False
-        # explicitly avoiding _set_static_graph() which crashes in DDP's no_sync() context.
-        import torch.nn.parallel as parallel
-        model = parallel.DistributedDataParallel(model, find_unused_parameters=False)
-    else:
-        model = wrap_cuda_model(args, model)
+    # --- Wrap model ---
+    model = wrap_cuda_model(args, model)
 
     # --- Optimizer & scheduler ---
     model, optimizer, scheduler, _, _ = init_optimizer_and_scheduler(args, configs, model, gan)

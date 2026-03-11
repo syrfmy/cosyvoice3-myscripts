@@ -25,6 +25,7 @@ GRAD_CLIP = 5
 MAX_FRAMES_IN_BATCH = 1000   # Controls batch size (decrease if OOM, increase for speed)
 SAVE_PER_STEP = 50           # Save checkpoint + run eval every N optimizer steps (-1 = epoch end only)
 LOG_INTERVAL = 5         # Log loss to console + WandB every N batches
+WARMUP_STEPS = 0             # Number of warmup steps for learning rate scheduler
 
 # --- Checkpoint Management ---
 KEEP_CHECKPOINTS = 2         # Keep only the N most recent checkpoints (+ best)
@@ -116,6 +117,7 @@ def patch_yaml_train_conf(yaml_path, tmp_dir):
     content = re.sub(r'(train_conf:\s*\n\s*optim:\s*)\w+', r'\1adam', content)
     content = re.sub(r'lr:\s*[\d.e\-]+\s*#.*change.*sft', f'lr: {LEARNING_RATE}', content)
     content = re.sub(r'scheduler:\s*constantlr.*sft', 'scheduler: warmuplr', content)
+    content = re.sub(r'warmup_steps:\s*\d+', f'warmup_steps: {WARMUP_STEPS}', content)
     content = re.sub(r'max_epoch:\s*\d+', f'max_epoch: {MAX_EPOCH}', content)
     content = re.sub(r'accum_grad:\s*\d+', f'accum_grad: {ACCUM_GRAD}', content)
     content = re.sub(r'grad_clip:\s*\d+', f'grad_clip: {GRAD_CLIP}', content)

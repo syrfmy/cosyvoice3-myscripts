@@ -91,6 +91,10 @@ def generate_deepspeed_config(tmp_dir):
             "reduce_bucket_size": 5e8,
             "contiguous_gradients": True
         },
+        "checkpoint": {
+            "save_optimizer_states": False,
+            "save_lr_scheduler_states": False
+        },
         "optimizer": {
             "type": "AdamW",
             "params": {

@@ -78,8 +78,8 @@ def log_metrics(tag, step, epoch, loss_dict, info_dict, rank):
 def cleanup_checkpoints(model_dir, keep_n=2):
     """Keep only the N most recent checkpoints + best_model.pt."""
     pts = sorted(glob.glob(os.path.join(model_dir, '*.pt')), key=os.path.getmtime)
-    # Never delete best_model.pt or init.pt
-    protected = {'best_model.pt', 'init.pt'}
+    # Never delete best_model.pt
+    protected = {'best_model.pt'}
     pts = [p for p in pts if os.path.basename(p) not in protected]
 
     while len(pts) > keep_n:
@@ -378,11 +378,9 @@ def main():
     model, optimizer, scheduler, _, _ = init_optimizer_and_scheduler(args, configs, model, gan)
     scheduler.set_step(start_step)
 
-    # --- Save init checkpoint ---
     info_dict = deepcopy(configs['train_conf'])
     info_dict['step'] = start_step
     info_dict['epoch'] = start_epoch
-    save_model(model, 'init', info_dict)
 
     # --- Scaler for AMP ---
     scaler = torch.cuda.amp.GradScaler() if args.use_amp else None

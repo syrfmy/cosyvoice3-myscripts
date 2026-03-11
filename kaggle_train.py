@@ -194,11 +194,13 @@ def run_training(model_name, yaml_path, ds_path):
         env["WANDB_RUN_NAME"] = WANDB_RUN_NAME
         env["WANDB_MODE"] = "online"
 
-    # Pass early stopping + max steps + checkpoint config
+    # Pass training loop config params
     if EARLY_STOPPING:
         env["EARLY_STOPPING_PATIENCE"] = str(EARLY_STOPPING_PATIENCE)
     env["MAX_STEPS"] = str(MAX_STEPS)
     env["KEEP_CHECKPOINTS"] = str(KEEP_CHECKPOINTS)
+    env["SAVE_PER_STEP"] = str(SAVE_PER_STEP)
+    env["LOG_INTERVAL"] = str(LOG_INTERVAL)
 
     result = subprocess.run(cmd, cwd=COSYVOICE_ROOT, env=env)
     if result.returncode != 0:

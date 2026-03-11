@@ -268,30 +268,7 @@ def train(model, optimizer, scheduler, scaler, train_data_loader, cv_data_loader
 
         dist.destroy_process_group(group_join)
 
-        # End-of-epoch eval (only if not already stopped)
-        if not stop_training:
-            dist.barrier()
-            eval_loss = evaluate(model, cv_data_loader, info_dict, global_step - 1, epoch, writer, rank)
-            info_dict['step'] = global_step - 1
-            save_model(model, f'epoch_{epoch}', info_dict)
-
-            if eval_loss is not None:
-                if eval_loss < best_eval_loss:
-                    best_eval_loss = eval_loss
-                    patience_counter = 0
-                    save_model(model, 'best_model', info_dict)
-                    logging.info(f'[Best] 🏆 New best eval loss: {eval_loss:.6f}')
-                else:
-                    patience_counter += 1
-                    logging.info(f'[EarlyStopping] No improvement {patience_counter}/{patience} '
-                                 f'(best={best_eval_loss:.6f}, current={eval_loss:.6f})')
-
-                if patience > 0 and patience_counter >= patience:
-                    logging.info(f'[EarlyStopping] ⛔ Stopping after {patience} evals without improvement')
-                    stop_training = True
-
-            if rank == 0:
-                cleanup_checkpoints(model_dir, keep_n=keep_checkpoints)
+        # No forced end-of-epoch eval. Evaluation is strictly step-based.
 
     # Clean up WandB
     if _wandb_available and rank == 0 and wandb.run is not None:
@@ -389,11 +366,15 @@ def main():
         logging.info(f'Loaded checkpoint: step={start_step}, epoch={start_epoch}')
 
     # --- Wrap model for DDP ---
-    model = wrap_cuda_model(args, model)
-
-    # --- DDP static graph for LoRA + gradient checkpointing ---
-    if args.train_engine == 'torch_ddp' and hasattr(model, '_set_static_graph'):
-        model._set_static_graph()
+    if args.train_engine == 'torch_ddp':
+        assert torch.cuda.is_available()
+        model.cuda()
+        # QLoRA with non-reentrant gradient checkpointing requires find_unused_parameters=False
+        # explicitly avoiding _set_static_graph() which crashes in DDP's no_sync() context.
+        import torch.nn.parallel as parallel
+        model = parallel.DistributedDataParallel(model, find_unused_parameters=False)
+    else:
+        model = wrap_cuda_model(args, model)
 
     # --- Optimizer & scheduler ---
     model, optimizer, scheduler, _, _ = init_optimizer_and_scheduler(args, configs, model, gan)

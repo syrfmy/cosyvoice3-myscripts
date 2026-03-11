@@ -401,8 +401,7 @@ class Qwen2LM(TransformerLM):
         lm_output, lm_output_mask = self.llm(lm_input, lm_input_len.to(device))
         logits = self.llm_decoder(lm_output)
         loss = self.criterion_ce(logits, lm_target.to(device))
-        acc = th_accuracy(logits.view(-1, self.llm_decoder.out_features), lm_target, ignore_label=IGNORE_ID)
-        return {'loss': loss, 'acc': acc}
+        return {'loss': loss}
 
     def forward_dpo(
             self,

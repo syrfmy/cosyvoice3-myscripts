@@ -76,19 +76,31 @@ def log_metrics(tag, step, epoch, loss_dict, info_dict, rank):
 
 
 def cleanup_checkpoints(model_dir, keep_n=2):
-    """Keep only the N most recent checkpoints + best_model.pt."""
-    pts = sorted(glob.glob(os.path.join(model_dir, '*.pt')), key=os.path.getmtime)
-    # Never delete best_model.pt
-    protected = {'best_model.pt'}
-    pts = [p for p in pts if os.path.basename(p) not in protected]
+    """Keep only the N most recent checkpoints + best_model."""
+    # train_utils always saves a .yaml config file for every checkpoint type (DDP and DeepSpeed)
+    yamls = sorted(glob.glob(os.path.join(model_dir, '*.yaml')), key=os.path.getmtime)
+    
+    # Never delete best_model
+    protected = {'best_model.yaml'}
+    yamls = [y for y in yamls if os.path.basename(y) not in protected]
 
-    while len(pts) > keep_n:
-        old = pts.pop(0)
-        os.remove(old)
-        yaml_f = re.sub(r'\.pt$', '.yaml', old)
-        if os.path.exists(yaml_f):
-            os.remove(yaml_f)
-        logging.info(f'[Checkpoint] 🗑️ Deleted old: {os.path.basename(old)}')
+    while len(yamls) > keep_n:
+        old_yaml = yamls.pop(0)
+        os.remove(old_yaml)
+        
+        base_path = old_yaml[:-5] # remove '.yaml'
+        
+        # Remove torch_ddp single file
+        pt_path = base_path + '.pt'
+        if os.path.exists(pt_path):
+            os.remove(pt_path)
+            
+        # Remove deepspeed directory
+        if os.path.isdir(base_path):
+            import shutil
+            shutil.rmtree(base_path)
+            
+        logging.info(f'[Checkpoint] 🗑️ Deleted old checkpoint: {os.path.basename(base_path)}')
 
 
 # ==========================================
@@ -234,6 +246,12 @@ def train(model, optimizer, scheduler, scaler, train_data_loader, cv_data_loader
 
                     # --- EVAL + SAVE ---
                     if save_per_step > 0 and global_step % save_per_step == 0:
+                        
+                        # Pre-eval checkpoint cleanup (frees disk space BEFORE generating new checkpoint)
+                        if rank == 0:
+                            # keep_n - 1 to make room for the checkpoint we are about to save
+                            cleanup_checkpoints(model_dir, keep_n=max(1, keep_checkpoints - 1))
+                            
                         dist.barrier()
                         eval_loss = evaluate(model, cv_data_loader, info_dict, global_step - 1, fractional_epoch, writer, rank)
 
@@ -257,10 +275,6 @@ def train(model, optimizer, scheduler, scaler, train_data_loader, cv_data_loader
                             if patience > 0 and patience_counter >= patience:
                                 logging.info(f'[EarlyStopping] ⛔ Stopping after {patience} evals without improvement')
                                 stop_training = True
-
-                        # Checkpoint cleanup
-                        if rank == 0:
-                            cleanup_checkpoints(model_dir, keep_n=keep_checkpoints)
 
                         model.train()
 

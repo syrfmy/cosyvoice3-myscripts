@@ -249,11 +249,15 @@ def train(model, optimizer, scheduler, scaler, train_data_loader, cv_data_loader
                         
                         # Pre-eval checkpoint cleanup (frees disk space BEFORE generating new checkpoint)
                         if rank == 0:
-                            # keep_n - 1 to make room for the checkpoint we are about to save
-                            cleanup_checkpoints(model_dir, keep_n=max(1, keep_checkpoints - 1))
+                            # max(0) allows deleting ALL old checkpoints if keep_checkpoints=1 before we save the new one!
+                            cleanup_checkpoints(model_dir, keep_n=max(0, keep_checkpoints - 1))
                             
                         dist.barrier()
                         eval_loss = evaluate(model, cv_data_loader, info_dict, global_step - 1, fractional_epoch, writer, rank)
+
+                        # Safe pre-save barrier to prevent PyTorch async ZIP writer crashes (inline_container.cc)
+                        dist.barrier()
+                        torch.cuda.empty_cache()
 
                         # Save checkpoint
                         info_dict['step'] = global_step - 1
@@ -265,6 +269,16 @@ def train(model, optimizer, scheduler, scaler, train_data_loader, cv_data_loader
                             if eval_loss < best_eval_loss:
                                 best_eval_loss = eval_loss
                                 patience_counter = 0
+
+                                # Free the old 6GB best model from disk before writing the new one
+                                if rank == 0:
+                                    best_model_dir = os.path.join(model_dir, 'best_model')
+                                    if os.path.isdir(best_model_dir):
+                                        import shutil
+                                        shutil.rmtree(best_model_dir)
+
+                                dist.barrier()
+                                torch.cuda.empty_cache()
                                 save_model(model, 'best_model', info_dict)
                                 logging.info(f'[Best] 🏆 New best eval loss: {eval_loss:.6f}')
                             else:

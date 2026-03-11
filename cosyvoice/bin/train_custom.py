@@ -259,10 +259,11 @@ def train(model, optimizer, scheduler, scaler, train_data_loader, cv_data_loader
                         dist.barrier()
                         torch.cuda.empty_cache()
 
-                        # Save checkpoint
-                        info_dict['step'] = global_step - 1
-                        model_name = f'step_{global_step}'
-                        save_model(model, model_name, info_dict)
+                        if keep_checkpoints > 0:
+                            # Save checkpoint
+                            info_dict['step'] = global_step - 1
+                            model_name = f'step_{global_step}'
+                            save_model(model, model_name, info_dict)
 
                         # Best model tracking
                         if eval_loss is not None:

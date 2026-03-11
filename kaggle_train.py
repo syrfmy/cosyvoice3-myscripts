@@ -39,7 +39,7 @@ TRAIN_DATA_LIST = "/kaggle/working/data/train/data.list"
 CV_DATA_LIST = "/kaggle/working/data/validation/data.list"
 
 # --- DeepSpeed ---
-DS_STAGE = 2
+DS_STAGE = 1
 DS_OFFLOAD_OPTIMIZER = "none"    # "none" or "cpu"
 DS_BF16 = False                  # Use bf16 via DeepSpeed
 

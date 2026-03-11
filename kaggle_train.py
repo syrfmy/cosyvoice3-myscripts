@@ -28,7 +28,7 @@ LOG_INTERVAL = 5         # Log loss to console + WandB every N batches
 WARMUP_STEPS = 0             # Number of warmup steps for learning rate scheduler
 
 # --- Checkpoint Management ---
-KEEP_CHECKPOINTS = 0         # Keep only the N most recent checkpoints (+ best)
+KEEP_CHECKPOINTS = 1         # Keep only the N most recent checkpoints (+ best)
 
 # --- Early Stopping ---
 EARLY_STOPPING = True        # Enable early stopping based on eval loss
@@ -45,7 +45,7 @@ DS_BF16 = False                  # Use bf16 via DeepSpeed
 
 # --- Output ---
 OUTPUT_DIR = "/kaggle/working/output"
-NUM_GPUS = 1  # Use 1 GPU to avoid DDP + gradient checkpointing + LoRA conflict
+NUM_GPUS = 2  # Use 1 GPU to avoid DDP + gradient checkpointing + LoRA conflict
 
 # --- Weights & Biases ---
 USE_WANDB = True

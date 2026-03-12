@@ -17,7 +17,7 @@ TRAIN_LLM = True           # Required: always finetune the LLM
 TRAIN_FLOW = False          # Optional: also finetune the Flow (diffusion) stage
 
 # --- Training Hyperparams ---
-LEARNING_RATE = 1e-5
+LEARNING_RATE = 2e-5
 MAX_STEPS = 1000            # Stop training after N optimizer steps
 MAX_EPOCH = 9999             # Set very high; MAX_STEPS controls actual end
 ACCUM_GRAD = 2
@@ -25,7 +25,7 @@ GRAD_CLIP = 5
 MAX_FRAMES_IN_BATCH = 1000   # Controls batch size (decrease if OOM, increase for speed)
 SAVE_PER_STEP = 50           # Save checkpoint + run eval every N optimizer steps (-1 = epoch end only)
 LOG_INTERVAL = 5         # Log loss to console + WandB every N batches
-WARMUP_STEPS = 0             # Number of warmup steps for learning rate scheduler
+WARMUP_STEPS = 50             # Number of warmup steps for learning rate scheduler
 
 # --- Checkpoint Management ---
 KEEP_CHECKPOINTS = 1         # Keep only the N most recent checkpoints (+ best)

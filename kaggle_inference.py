@@ -77,11 +77,24 @@ def convert_deepspeed_checkpoint(ds_checkpoint_dir, output_pt_path):
 
 
 def download_hf_checkpoint(repo_id):
-    """Download a HuggingFace model repo and return the local directory path."""
-    from huggingface_hub import snapshot_download
-    logging.info(f"Downloading fine-tuned checkpoint from HuggingFace: {repo_id}")
-    local_dir = snapshot_download(repo_id)
-    logging.info(f"Downloaded to: {local_dir}")
+    """Download only the model weights from a HuggingFace repo (skips optimizer states).
+    
+    DeepSpeed uploads contain:
+      - mp_rank_00_model_states.pt  (2GB, needed)
+      - zero_pp_rank_*_optim_states.pt  (3GB each, NOT needed for inference)
+    
+    This function only downloads the model weights file to save bandwidth and disk space.
+    """
+    from huggingface_hub import hf_hub_download
+    logging.info(f"Downloading fine-tuned model weights from HuggingFace: {repo_id}")
+    local_path = hf_hub_download(
+        repo_id=repo_id,
+        filename="mp_rank_00_model_states.pt",
+        repo_type="model",
+    )
+    # Return the parent directory so convert_deepspeed_checkpoint can find it
+    local_dir = os.path.dirname(local_path)
+    logging.info(f"Downloaded model weights to: {local_path} (skipped optimizer states)")
     return local_dir
 
 
